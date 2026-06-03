@@ -21,8 +21,7 @@
   }
   @keyframes enter { to { transform: translateY(0) scale(1); opacity: 1; } }
 
-  .pill-wrap, .pill { cursor: grab; }
-  .pill:active { cursor: grabbing; }
+  .pill-wrap, .pill { cursor: pointer; }
   .pill-wrap {
     position: relative;
     padding: 0;
@@ -776,56 +775,12 @@
     return Promise.resolve(null)
   }
 
-  // ── Drag manual (JS → Python move_by) ───────────────────────────────────────
-  ;(function() {
-    const pill = document.querySelector('.pill')
-    let dragging = false, hasDragged = false
-    let lastX = 0, lastY = 0
-
-    function isInteractive(el) {
-      return el.closest('#menuDots') ||
-             el.closest('.action-orb-wrap') ||
-             el.closest('.agent-icon') ||
-             el.closest('.popup-panel')
-    }
-
-    pill.addEventListener('mousedown', e => {
-      if (e.button !== 0 || isInteractive(e.target)) return
-      dragging = false
-      hasDragged = false
-      lastX = e.screenX
-      lastY = e.screenY
-
-      function onMove(ev) {
-        const dx = ev.screenX - lastX
-        const dy = ev.screenY - lastY
-        if (!dragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) dragging = true
-        if (dragging) {
-          api('move_by', dx, dy)
-          lastX = ev.screenX
-          lastY = ev.screenY
-          hasDragged = true
-        }
-      }
-
-      function onUp() {
-        dragging = false
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-      }
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
-    })
-
-    // ── Activar (clic en pill, sin drag) ─────────────────────────────
-    pill.addEventListener('click', e => {
-      if (isInteractive(e.target)) return
-      if (hasDragged) { hasDragged = false; return }
-      api('activate')
-      setState('connecting')
-    })
-  })()
+  // ── Activar (clic en pill) ────────────────────────────────────────────────────
+  document.querySelector('.pill').addEventListener('click', e => {
+    if (e.target.closest('#menuDots') || e.target.closest('.popup-panel')) return
+    api('activate')
+    setState('connecting')
+  })
 
   // ── Popup expandido ───────────────────────────────────────────────────────────
   const VOICES = ['cedar','alloy','ash','ballad','coral','echo','sage','shimmer','verse']

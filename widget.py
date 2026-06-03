@@ -134,19 +134,6 @@ class Api:
             pass
         return "ok"
 
-    def move_by(self, dx: int, dy: int):
-        """Mueve la ventana dx/dy píxeles (drag manual desde JS)."""
-        if not self._window:
-            return "ok"
-        try:
-            native = getattr(self._window, "native", None)
-            if native is not None:
-                frame = native.frame()
-                native.setFrameOrigin_((frame.origin.x + int(dx), frame.origin.y - int(dy)))
-        except Exception:
-            pass
-        return "ok"
-
     def expand(self, height: int):
         """Expande la ventana hacia abajo para mostrar el popup del menú."""
         if self._window:
@@ -339,9 +326,22 @@ def run_widget():
                 native.setHasShadow_(False)
                 native.setOpaque_(False)
                 try:
-                    from AppKit import NSColor
+                    from AppKit import NSColor, NSApp
 
                     native.setBackgroundColor_(NSColor.clearColor())
+
+                    # Flotar sobre TODO: nivel NSStatusWindowLevel (25)
+                    native.setLevel_(25)
+
+                    # Aparecer en todos los espacios/escritorios,
+                    # quieto en transiciones, fuera del Cmd+Tab,
+                    # visible sobre apps fullscreen
+                    # CanJoinAllSpaces=1 | Stationary=16 | IgnoresCycle=64 | FullScreenAuxiliary=256
+                    native.setCollectionBehavior_(1 | 16 | 64 | 256)
+
+                    # Modo accesorio: sin icono en Dock, sin robar foco
+                    # de otras apps cuando se muestra/clica
+                    NSApp.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
                 except Exception:
                     pass
             window.move(x, y)
