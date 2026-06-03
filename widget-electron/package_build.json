@@ -1,0 +1,43 @@
+{
+  "name": "mike",
+  "version": "1.0.0",
+  "description": "Mike - Tu asistente de voz para Mac",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.mike.assistant",
+    "productName": "Mike",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "dmg": {
+      "title": "Mike Assistant",
+      "background": null,
+      "window": { "width": 540, "height": 380 }
+    },
+    "extraResources": [
+      {
+        "from": "../dist/mike-core",
+        "to": "mike-core"
+      },
+      {
+        "from": "../.env",
+        "to": ".env"
+      }
+    ],
+    "loginItemSettings": {
+      "openAtLogin": true
+    }
+  },
+  "devDependencies": {
+    "electron-builder": "latest"
+  },
+  "dependencies": {
+    "electron": "latest"
+  }
+}
