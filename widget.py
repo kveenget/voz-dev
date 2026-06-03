@@ -330,18 +330,11 @@ def run_widget():
 
                     native.setBackgroundColor_(NSColor.clearColor())
 
-                    # Flotar sobre TODO: nivel NSStatusWindowLevel (25)
+                    # NSStatusWindowLevel=25: flota sobre todas las apps
                     native.setLevel_(25)
 
-                    # Aparecer en todos los espacios/escritorios,
-                    # quieto en transiciones, fuera del Cmd+Tab,
-                    # visible sobre apps fullscreen
                     # CanJoinAllSpaces=1 | Stationary=16 | IgnoresCycle=64 | FullScreenAuxiliary=256
                     native.setCollectionBehavior_(1 | 16 | 64 | 256)
-
-                    # Modo accesorio: sin icono en Dock, sin robar foco
-                    # de otras apps cuando se muestra/clica
-                    NSApp.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
                 except Exception:
                     pass
             window.move(x, y)
@@ -351,6 +344,15 @@ def run_widget():
 
     window.events.shown += on_ready
     window.events.loaded += on_ready
+
+    # NSApplicationActivationPolicyAccessory = 1
+    # Sin icono en Dock, no roba foco automáticamente.
+    # Debe llamarse ANTES de webview.start() / NSApp.run().
+    try:
+        from AppKit import NSApp
+        NSApp.setActivationPolicy_(1)
+    except Exception:
+        pass
 
     try:
         webview.start(debug=False)
