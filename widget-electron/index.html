@@ -30,7 +30,7 @@
     position: relative;
     padding: 0;
     border-radius: 999px;
-    overflow: hidden;
+    overflow: visible;
     background: transparent;
   }
 
@@ -67,7 +67,7 @@
     align-items: center;
     padding: 0 14px 0 12px;
     gap: 10px;
-    overflow: hidden;
+    overflow: visible;
     background: transparent;
   }
   .pill::before {
@@ -378,78 +378,92 @@
   .analyzing .wave-path { stroke-width: 2.2; opacity: 0.85; }
   .analyzing .icon-ring { animation-duration: 0.9s; }
 
-  /* ── Menú contextual ── */
-  .ctx-menu {
+  /* ── Popup expandido (vive dentro de la ventana agrandada) ── */
+  #root {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .popup-panel {
     -webkit-app-region: no-drag;
-    position: fixed;
-    top: 68px; right: 4px;
-    width: 216px;
-    background: rgba(16, 18, 22, 0.92);
-    -webkit-backdrop-filter: blur(14px) saturate(120%);
-    backdrop-filter: blur(14px) saturate(120%);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 14px;
-    padding: 10px;
-    z-index: 9999;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    transform-origin: top right;
-    animation: menu-in 0.18s cubic-bezier(0.34,1.4,0.64,1) forwards;
+    width: 352px;
+    margin-top: 8px;
+    border-radius: 18px;
+    padding: 14px 12px 12px;
+    background: rgba(14, 14, 18, 0.72);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      0 8px 32px rgba(0,0,0,0.45);
+    transform-origin: top center;
+    animation: popup-in 0.22s cubic-bezier(0.34,1.4,0.64,1) forwards;
   }
-  .ctx-menu.closing { animation: menu-out 0.13s ease-in forwards; pointer-events: none; }
-
-  @keyframes menu-in {
-    from { opacity:0; transform:scale(0.9) translateY(-6px); }
-    to   { opacity:1; transform:scale(1)   translateY(0); }
-  }
-  @keyframes menu-out {
-    from { opacity:1; transform:scale(1)   translateY(0); }
-    to   { opacity:0; transform:scale(0.9) translateY(-6px); }
+  .popup-panel.closing {
+    animation: popup-out 0.15s ease-in forwards;
+    pointer-events: none;
   }
 
-  .ctx-label {
+  @keyframes popup-in {
+    from { opacity:0; transform: scaleY(0.88) translateY(-6px); }
+    to   { opacity:1; transform: scaleY(1)    translateY(0); }
+  }
+  @keyframes popup-out {
+    from { opacity:1; transform: scaleY(1)    translateY(0); }
+    to   { opacity:0; transform: scaleY(0.88) translateY(-6px); }
+  }
+
+  .popup-section-label {
     font-family: -apple-system, 'SF Pro Text', sans-serif;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.07em;
-    text-transform: uppercase; color: rgba(255, 255, 255, 0.32);
-    padding: 2px 6px 7px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: rgba(255,255,255,0.28);
+    padding: 0 4px 8px;
   }
   .voice-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
-    margin-bottom: 8px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    margin-bottom: 4px;
   }
   .voice-chip {
     font-family: -apple-system, 'SF Pro Text', sans-serif;
     font-size: 12px; font-weight: 500; text-align: center;
-    color: rgba(255, 255, 255, 0.65);
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px; padding: 6px 4px;
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 10px; padding: 7px 4px;
     cursor: pointer; text-transform: capitalize;
-    transition: all 0.14s ease;
+    transition: all 0.12s ease;
+    -webkit-app-region: no-drag;
   }
   .voice-chip:hover {
-    background: rgba(249,115,22,0.1);
-    border-color: rgba(249,115,22,0.3);
+    background: rgba(249,115,22,0.12);
+    border-color: rgba(249,115,22,0.35);
     color: #FDBA74;
   }
   .voice-chip.active {
-    background: rgba(249,115,22,0.15);
-    border-color: rgba(249,115,22,0.55);
+    background: rgba(249,115,22,0.18);
+    border-color: rgba(249,115,22,0.6);
     color: #FB923C; font-weight: 700;
   }
-  .ctx-sep { height: 1px; background: rgba(255,255,255,0.07); margin: 6px 0; }
-  .ctx-btn {
-    display: flex; align-items: center; gap: 9px;
-    padding: 7px 8px; border-radius: 8px; cursor: pointer;
-    transition: background 0.14s;
+
+  .popup-sep { height: 1px; background: rgba(255,255,255,0.07); margin: 10px 0 8px; }
+
+  .popup-btn {
+    -webkit-app-region: no-drag;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px; cursor: pointer;
+    transition: background 0.12s;
   }
-  .ctx-btn:hover { background: rgba(255,255,255,0.06); }
-  .ctx-btn.danger:hover { background: rgba(239,68,68,0.12); }
-  .ctx-btn-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
-  .ctx-btn-text {
+  .popup-btn:hover { background: rgba(255,255,255,0.06); }
+  .popup-btn.danger:hover { background: rgba(239,68,68,0.1); }
+  .popup-btn-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+  .popup-btn-text {
     font-family: -apple-system, 'SF Pro Text', sans-serif;
-    font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);
+    font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.8);
   }
-  .ctx-btn.danger .ctx-btn-text { color: rgba(248,113,113,0.85); }
+  .popup-btn.danger .popup-btn-text { color: rgba(248,113,113,0.85); }
 
   /* ── Keyframes ── */
   @keyframes icon-ring-pulse {
@@ -626,26 +640,29 @@
 
   // ── Activar (clic en pill) ────────────────────────────────────────────────────
   document.querySelector('.pill').addEventListener('click', e => {
-    if (e.target.closest('#menuDots') || e.target.closest('.ctx-menu')) return
+    if (e.target.closest('#menuDots') || e.target.closest('.popup-panel')) return
     api('activate')
     setState('connecting')
   })
 
-  // ── Menú contextual ────────────────────────────────────────────────────────────
+  // ── Popup expandido ───────────────────────────────────────────────────────────
   const VOICES = ['cedar','alloy','ash','ballad','coral','echo','sage','shimmer','verse']
+  // Altura expandida: pill(56) + gap(8) + popup contenido(~280) = 344
+  const POPUP_H = 344
   let activeVoice = 'cedar'
-  let menuEl = null, menuOpen = false
+  let popupEl = null, popupOpen = false
 
-  function buildMenu() {
-    const m = document.createElement('div')
-    m.className = 'ctx-menu'
+  function buildPopup() {
+    const p = document.createElement('div')
+    p.className = 'popup-panel'
 
-    // Sección voz
+    // Label voz
     const lbl = document.createElement('div')
-    lbl.className = 'ctx-label'
+    lbl.className = 'popup-section-label'
     lbl.textContent = 'Voz del agente'
-    m.appendChild(lbl)
+    p.appendChild(lbl)
 
+    // Grid 3 columnas
     const grid = document.createElement('div')
     grid.className = 'voice-grid'
     VOICES.forEach(v => {
@@ -656,70 +673,77 @@
       chip.addEventListener('click', e => { e.stopPropagation(); selectVoice(v) })
       grid.appendChild(chip)
     })
-    m.appendChild(grid)
+    p.appendChild(grid)
 
     // Separador
     const sep = document.createElement('div')
-    sep.className = 'ctx-sep'
-    m.appendChild(sep)
+    sep.className = 'popup-sep'
+    p.appendChild(sep)
 
     // Detener sesión
     const stop = document.createElement('div')
-    stop.className = 'ctx-btn danger'
-    stop.innerHTML = '<span class="ctx-btn-icon">⏹</span><span class="ctx-btn-text">Detener sesión</span>'
+    stop.className = 'popup-btn danger'
+    stop.innerHTML = '<span class="popup-btn-icon">⏹</span><span class="popup-btn-text">Detener sesión</span>'
     stop.addEventListener('click', e => {
       e.stopPropagation()
       api('stop_session')
-      closeMenu()
+      closePopup()
     })
-    m.appendChild(stop)
+    p.appendChild(stop)
 
-    return m
+    return p
   }
 
-  function openMenu() {
-    if (menuOpen) return
-    menuOpen = true
+  function openPopup() {
+    if (popupOpen) return
+    popupOpen = true
     document.getElementById('menuDots').classList.add('open')
-    menuEl = buildMenu()
-    document.body.appendChild(menuEl)
+    // Expandir la ventana primero, luego insertar el popup
+    api('expand', POPUP_H).then(() => {
+      popupEl = buildPopup()
+      document.getElementById('root').appendChild(popupEl)
+    })
   }
 
-  function closeMenu() {
-    if (!menuOpen || !menuEl) return
-    menuOpen = false
+  function closePopup() {
+    if (!popupOpen || !popupEl) return
+    popupOpen = false
     document.getElementById('menuDots').classList.remove('open')
-    menuEl.classList.add('closing')
-    const el = menuEl; menuEl = null
-    setTimeout(() => el && el.parentNode && el.parentNode.removeChild(el), 140)
+    popupEl.classList.add('closing')
+    const el = popupEl; popupEl = null
+    setTimeout(() => {
+      el && el.parentNode && el.parentNode.removeChild(el)
+      api('collapse')
+    }, 150)
   }
 
   document.getElementById('menuDots').addEventListener('click', e => {
     e.stopPropagation()
-    menuOpen ? closeMenu() : openMenu()
+    popupOpen ? closePopup() : openPopup()
   })
 
-  document.addEventListener('mousedown', e => {
-    if (menuOpen && menuEl && !menuEl.contains(e.target) &&
+  document.addEventListener('click', e => {
+    if (popupOpen && popupEl &&
+        !popupEl.contains(e.target) &&
         !document.getElementById('menuDots').contains(e.target)) {
-      closeMenu()
+      closePopup()
     }
   })
 
-  // ── Cambiar voz ────────────────────────────────────────────────────────────────
+  // ── Cambiar voz ───────────────────────────────────────────────────────────────
   function selectVoice(v) {
     activeVoice = v
     api('set_voice', v)
-    // Actualizar chips si el menú sigue abierto
-    if (menuEl) {
-      menuEl.querySelectorAll('.voice-chip').forEach(c =>
+    if (popupEl) {
+      popupEl.querySelectorAll('.voice-chip').forEach(c =>
         c.classList.toggle('active', c.dataset.voice === v)
       )
     }
-    setTimeout(closeMenu, 120)
+    // Confirma visualmente 300ms antes de cerrar
+    setTimeout(closePopup, 300)
   }
 
-  // ── Cargar voz guardada al iniciar ─────────────────────────────────────────────
+  // ── Cargar voz guardada al iniciar ────────────────────────────────────────────
   function initVoice() {
     api('get_voice').then(v => { if (v) activeVoice = v })
   }

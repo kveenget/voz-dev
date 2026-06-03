@@ -90,6 +90,8 @@ def set_state(state):
 
 
 class Api:
+    _window = None  # inyectado en run_widget() después de crear la ventana
+
     def get_state(self):
         try:
             with open(STATE_FILE) as f:
@@ -127,6 +129,24 @@ class Api:
                 f.write(str(time.time()))
         except OSError:
             pass
+        return "ok"
+
+    def expand(self, height: int):
+        """Expande la ventana hacia abajo para mostrar el popup del menú."""
+        if self._window:
+            try:
+                self._window.resize(W, int(height))
+            except Exception:
+                pass
+        return "ok"
+
+    def collapse(self):
+        """Colapsa la ventana de vuelta al tamaño normal del pill."""
+        if self._window:
+            try:
+                self._window.resize(W, H)
+            except Exception:
+                pass
         return "ok"
 
 
@@ -233,6 +253,7 @@ def run_widget():
     stop_poll = threading.Event()
     poll_started = threading.Event()
 
+    api = Api()
     window = webview.create_window(
         title="",
         html=HTML,
@@ -240,15 +261,16 @@ def run_widget():
         height=H,
         x=x,
         y=y,
-        resizable=False,
+        resizable=True,
         frameless=True,
         transparent=True,
         background_color="#000000",
         shadow=False,
         on_top=True,
         easy_drag=False,
-        js_api=Api(),
+        js_api=api,
     )
+    api._window = window
 
     def on_ready():
         _keep_notch_position(window, x, y)
