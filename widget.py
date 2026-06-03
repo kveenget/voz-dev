@@ -326,15 +326,8 @@ def run_widget():
                 native.setHasShadow_(False)
                 native.setOpaque_(False)
                 try:
-                    from AppKit import NSColor, NSApp
-
+                    from AppKit import NSColor
                     native.setBackgroundColor_(NSColor.clearColor())
-
-                    # NSStatusWindowLevel=25: flota sobre todas las apps
-                    native.setLevel_(25)
-
-                    # CanJoinAllSpaces=1 | Stationary=16 | IgnoresCycle=64 | FullScreenAuxiliary=256
-                    native.setCollectionBehavior_(1 | 16 | 64 | 256)
                 except Exception:
                     pass
             window.move(x, y)
@@ -345,8 +338,22 @@ def run_widget():
     window.events.shown += on_ready
     window.events.loaded += on_ready
 
+    def _setup_main_thread(win):
+        """Configuración que requiere hilo principal — pasada via func a webview.start."""
+        try:
+            native = getattr(win, "native", None)
+            if native is None:
+                return
+            # setLevel_ y setCollectionBehavior_ van por NSWMWindowCoordinator
+            # en macOS 26 y requieren hilo principal. webview.start(func=) lo garantiza.
+            native.setLevel_(25)  # NSStatusWindowLevel: flota sobre todo
+            # CanJoinAllSpaces | Stationary | IgnoresCycle | FullScreenAuxiliary
+            native.setCollectionBehavior_(1 | 16 | 64 | 256)
+        except Exception:
+            pass
+
     try:
-        webview.start(debug=False)
+        webview.start(func=_setup_main_thread, args=(window,), debug=False)
     finally:
         stop_poll.set()
         _release_single_instance()
