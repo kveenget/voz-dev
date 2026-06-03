@@ -23,8 +23,10 @@ from voz.prompts import activation_opening_user_message, system_prompt
 from voz.tools_runtime import ejecutar_funcion, session_tools
 from voz.widget_ctl import set_widget_state
 
-_VOICE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
-_STOP_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
+_VOICE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
+_STOP_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
+_CMD_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
+_PROJECT_FILE = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
 
 # RMS mínimo para detectar voz en el cliente (sin esperar el VAD del servidor).
 # Valor bajo a propósito: muestra "user" en cuanto hay audio, el servidor confirma después.
@@ -378,9 +380,14 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                         _widget_force("idle")
 
         async def vigilar_widget():
-            """Detecta cambios de voz y señal de stop desde el widget."""
+            """Detecta cambios de voz, stop, comandos rápidos y proyecto desde el widget."""
             voz_activa = cfg.VOZ_VOICE
             stop_ts = _leer_ts(_STOP_FILE)
+            try:
+                cmd_mtime = os.path.getmtime(_CMD_FILE)
+            except OSError:
+                cmd_mtime = 0.0
+
             while state["activo"]:
                 await asyncio.sleep(0.5)
 
@@ -408,6 +415,37 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                     print("\n⏹  Stop desde widget")
                     state["activo"] = False
                     return
+
+                # Comando rápido desde quick actions
+                try:
+                    mtime = os.path.getmtime(_CMD_FILE)
+                    if mtime > cmd_mtime:
+                        cmd_mtime = mtime
+                        cmd = _leer_archivo_str(_CMD_FILE)
+                        if cmd and not state.get("reproduciendo") and not state.get("ejecutando_tool"):
+                            try:
+                                open(_CMD_FILE, "w").close()
+                            except OSError:
+                                pass
+                            print(f"\n⚡ Comando rápido: {cmd}")
+                            await ws.send(json.dumps({
+                                "type": "conversation.item.create",
+                                "item": {
+                                    "type": "message",
+                                    "role": "user",
+                                    "content": [{"type": "input_text", "text": cmd}],
+                                },
+                            }))
+                            await ws.send(json.dumps({"type": "response.create"}))
+                            _widget_force("thinking")
+                except OSError:
+                    pass
+
+                # Cambio de proyecto activo
+                nueva_proj = _leer_archivo_str(_PROJECT_FILE)
+                if nueva_proj and nueva_proj != cfg.PROJECT_ROOT:
+                    cfg.PROJECT_ROOT = nueva_proj
+                    print(f"\n📁 Proyecto → {nueva_proj}")
 
         try:
             await asyncio.gather(

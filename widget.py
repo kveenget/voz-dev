@@ -48,11 +48,14 @@ def _patch_pywebview_cocoa_transparency():
 
 _patch_pywebview_cocoa_transparency()
 
-STATE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_state.txt")
-SHOW_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_show.txt")
-VOICE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
-STOP_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
-PID_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_widget.pid")
+STATE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_state.txt")
+SHOW_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_show.txt")
+VOICE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
+STOP_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
+PID_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_widget.pid")
+CMD_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
+PROJECT_FILE = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
+ACTIVATE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_activate.txt")
 
 W, H = 360, 56
 
@@ -148,6 +151,48 @@ class Api:
             except Exception:
                 pass
         return "ok"
+
+    def send_command(self, cmd: str):
+        """Inyecta un comando de texto en la sesión activa y activa si no hay sesión."""
+        try:
+            with open(CMD_FILE, "w", encoding="utf-8") as f:
+                f.write(cmd.strip())
+        except OSError:
+            pass
+        try:
+            with open(ACTIVATE_FILE, "w", encoding="utf-8") as f:
+                f.write(str(time.time()))
+        except OSError:
+            pass
+        return "ok"
+
+    def get_project(self):
+        """Devuelve el proyecto activo (archivo temporal o variable de entorno)."""
+        try:
+            p = open(PROJECT_FILE, encoding="utf-8").read().strip()
+            if p:
+                return p
+        except OSError:
+            pass
+        return os.path.expanduser(os.getenv("VOZ_PROJECT_ROOT", "~"))
+
+    def pick_project(self):
+        """Abre el Finder nativo para seleccionar carpeta de proyecto."""
+        if not self._window:
+            return ""
+        try:
+            result = self._window.create_file_dialog(
+                webview.FOLDER_DIALOG,
+                allow_multiple=False,
+            )
+            if result:
+                path = result[0]
+                with open(PROJECT_FILE, "w", encoding="utf-8") as f:
+                    f.write(path)
+                return path
+        except Exception:
+            pass
+        return ""
 
 
 def _notch_position():

@@ -452,8 +452,69 @@
     font-family: -apple-system, 'SF Pro Text', sans-serif;
     font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
     text-transform: uppercase; color: rgba(255,255,255,0.28);
-    padding: 0 4px 8px;
+    padding: 0 4px 7px;
   }
+
+  /* ── Proyecto activo ── */
+  .popup-project-row {
+    -webkit-app-region: no-drag;
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    cursor: default;
+  }
+  .popup-project-icon { font-size: 13px; flex-shrink: 0; }
+  .popup-project-name {
+    flex: 1; min-width: 0;
+    font-family: -apple-system, 'SF Pro Text', sans-serif;
+    font-size: 12px; font-weight: 500;
+    color: rgba(255,255,255,0.78);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .popup-project-change {
+    -webkit-app-region: no-drag;
+    font-family: -apple-system, 'SF Pro Text', sans-serif;
+    font-size: 11px; font-weight: 600;
+    color: #FB923C; cursor: pointer;
+    padding: 3px 9px; border-radius: 7px;
+    border: 1px solid rgba(249,115,22,0.45);
+    background: rgba(249,115,22,0.1);
+    transition: all 0.13s ease; flex-shrink: 0;
+  }
+  .popup-project-change:hover {
+    background: rgba(249,115,22,0.22);
+    border-color: rgba(249,115,22,0.65);
+  }
+
+  /* ── Acciones rápidas ── */
+  .actions-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .action-btn {
+    -webkit-app-region: no-drag;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 5px;
+    padding: 10px 6px 9px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    transition: all 0.14s ease;
+  }
+  .action-btn:hover {
+    background: rgba(249,115,22,0.13);
+    border-color: rgba(249,115,22,0.38);
+    box-shadow: inset 0 1px 0 rgba(255,237,213,0.15), 0 0 10px rgba(249,115,22,0.12);
+  }
+  .action-btn:active { transform: scale(0.95); }
+  .action-icon { font-size: 17px; line-height: 1; }
+  .action-label {
+    font-family: -apple-system, 'SF Pro Text', sans-serif;
+    font-size: 11px; font-weight: 500;
+    color: rgba(255,255,255,0.68); text-align: center;
+  }
+  .action-btn:hover .action-label { color: #FDBA74; }
   .voice-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
     margin-bottom: 4px;
@@ -691,22 +752,82 @@
 
   // ── Popup expandido ───────────────────────────────────────────────────────────
   const VOICES = ['cedar','alloy','ash','ballad','coral','echo','sage','shimmer','verse']
-  // Altura expandida: pill(56) + gap(8) + popup contenido(~280) = 344
-  const POPUP_H = 344
+  const ACTIONS = [
+    { icon: '🔀', label: 'Git status',   cmd: 'dame el git status del proyecto' },
+    { icon: '📷', label: 'Ver pantalla', cmd: 'mira la pantalla y dime qué ves' },
+    { icon: '🧪', label: 'Tests',        cmd: 'corre los tests y dime el resultado' },
+    { icon: '💾', label: 'Commit',       cmd: 'haz commit de los cambios actuales con un mensaje descriptivo' },
+  ]
+  // pill(56) + gap(8) + popup: proyecto+sep+acciones+sep+voz+sep+stop ≈ 400
+  const POPUP_H = 460
   let activeVoice = 'cedar'
+  let activeProject = ''
   let popupEl = null, popupOpen = false
 
   function buildPopup() {
     const p = document.createElement('div')
     p.className = 'popup-panel'
 
-    // Label voz
-    const lbl = document.createElement('div')
-    lbl.className = 'popup-section-label'
-    lbl.textContent = 'Voz del agente'
-    p.appendChild(lbl)
+    // ── Proyecto activo ──────────────────────────────────────────────
+    const projRow = document.createElement('div')
+    projRow.className = 'popup-project-row'
+    const projIcon = document.createElement('span')
+    projIcon.className = 'popup-project-icon'
+    projIcon.textContent = '📁'
+    const projName = document.createElement('span')
+    projName.className = 'popup-project-name'
+    projName.id = 'popupProjectName'
+    projName.textContent = activeProject
+      ? activeProject.split('/').pop()
+      : 'Cargando...'
+    const projBtn = document.createElement('div')
+    projBtn.className = 'popup-project-change'
+    projBtn.textContent = 'Cambiar'
+    projBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      api('pick_project').then(path => {
+        if (path) {
+          activeProject = path
+          projName.textContent = path.split('/').pop()
+        }
+      })
+    })
+    projRow.appendChild(projIcon)
+    projRow.appendChild(projName)
+    projRow.appendChild(projBtn)
+    p.appendChild(projRow)
 
-    // Grid 3 columnas
+    p.appendChild(_sep())
+
+    // ── Acciones rápidas ─────────────────────────────────────────────
+    const actLbl = document.createElement('div')
+    actLbl.className = 'popup-section-label'
+    actLbl.textContent = 'Acciones rápidas'
+    p.appendChild(actLbl)
+
+    const actGrid = document.createElement('div')
+    actGrid.className = 'actions-grid'
+    ACTIONS.forEach(({ icon, label, cmd }) => {
+      const btn = document.createElement('div')
+      btn.className = 'action-btn'
+      btn.innerHTML = `<span class="action-icon">${icon}</span><span class="action-label">${label}</span>`
+      btn.addEventListener('click', e => {
+        e.stopPropagation()
+        api('send_command', cmd)
+        closePopup()
+      })
+      actGrid.appendChild(btn)
+    })
+    p.appendChild(actGrid)
+
+    p.appendChild(_sep())
+
+    // ── Voz del agente ───────────────────────────────────────────────
+    const voiceLbl = document.createElement('div')
+    voiceLbl.className = 'popup-section-label'
+    voiceLbl.textContent = 'Voz del agente'
+    p.appendChild(voiceLbl)
+
     const grid = document.createElement('div')
     grid.className = 'voice-grid'
     VOICES.forEach(v => {
@@ -719,12 +840,9 @@
     })
     p.appendChild(grid)
 
-    // Separador
-    const sep = document.createElement('div')
-    sep.className = 'popup-sep'
-    p.appendChild(sep)
+    p.appendChild(_sep())
 
-    // Detener sesión
+    // ── Detener sesión ───────────────────────────────────────────────
     const stop = document.createElement('div')
     stop.className = 'popup-btn danger'
     stop.innerHTML = '<span class="popup-btn-icon">⏹</span><span class="popup-btn-text">Detener sesión</span>'
@@ -738,14 +856,27 @@
     return p
   }
 
+  function _sep() {
+    const s = document.createElement('div')
+    s.className = 'popup-sep'
+    return s
+  }
+
   function openPopup() {
     if (popupOpen) return
     popupOpen = true
     document.getElementById('menuDots').classList.add('open')
-    // Expandir la ventana primero, luego insertar el popup
     api('expand', POPUP_H).then(() => {
       popupEl = buildPopup()
       document.getElementById('root').appendChild(popupEl)
+      // Cargar proyecto actual
+      api('get_project').then(path => {
+        if (path) {
+          activeProject = path
+          const el = document.getElementById('popupProjectName')
+          if (el) el.textContent = path.split('/').pop()
+        }
+      })
     })
   }
 
@@ -783,7 +914,6 @@
         c.classList.toggle('active', c.dataset.voice === v)
       )
     }
-    // Confirma visualmente 300ms antes de cerrar
     setTimeout(closePopup, 300)
   }
 
