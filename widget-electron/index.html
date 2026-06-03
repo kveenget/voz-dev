@@ -23,7 +23,11 @@
   @keyframes enter { to { transform: translateY(0) scale(1); opacity: 1; } }
 
   .pill-wrap, .pill { cursor: pointer; }
-  .pill-wrap, .pill, .menu-dots, .action-orb-wrap, .agent-icon {
+  /* pill-wrap y pill son draggables (arrastran la ventana);
+     los elementos interactivos dentro del pill son no-drag */
+  .menu-dots, .action-orb-wrap, .agent-icon,
+  .popup-panel, .action-btn, .voice-chip,
+  .popup-project-change, .popup-btn {
     -webkit-app-region: no-drag;
   }
   .pill-wrap {
@@ -624,6 +628,23 @@
     0%,100% { filter: brightness(1); }
     45%     { filter: brightness(1.12); box-shadow: inset 0 0 24px rgba(251,146,60,0.2); }
   }
+
+  /* ── Scroll interno del popup ── */
+  .popup-scroll {
+    overflow-y: auto;
+    max-height: calc(100vh - 88px); /* 64px pill + 8px gap + 16px padding */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .popup-scroll::-webkit-scrollbar { width: 3px; }
+  .popup-scroll::-webkit-scrollbar-track { background: transparent; }
+  .popup-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.18);
+    border-radius: 2px;
+  }
+  .popup-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(249,115,22,0.45);
+  }
 </style>
 </head>
 <body>
@@ -785,8 +806,8 @@
     { icon: SVG.beaker,    label: 'Tests',        cmd: 'corre los tests y dime el resultado' },
     { icon: SVG.commit,    label: 'Commit',       cmd: 'haz commit de los cambios actuales con un mensaje descriptivo' },
   ]
-  // pill(56) + gap(8) + popup: proyecto+sep+acciones+sep+voz+sep+stop ≈ 400
-  const POPUP_H = 460
+  // pill(64) + gap(8) + popup interior scrollable
+  const POPUP_H = 480
   let activeVoice = 'cedar'
   let activeProject = ''
   let popupEl = null, popupOpen = false
@@ -794,6 +815,13 @@
   function buildPopup() {
     const p = document.createElement('div')
     p.className = 'popup-panel'
+
+    const scroll = document.createElement('div')
+    scroll.className = 'popup-scroll'
+    p.appendChild(scroll)
+
+    // helper: agrega al scroll en vez de al panel directamente
+    const add = el => scroll.appendChild(el)
 
     // ── Proyecto activo ──────────────────────────────────────────────
     const projRow = document.createElement('div')
@@ -822,15 +850,15 @@
     projRow.appendChild(projIcon)
     projRow.appendChild(projName)
     projRow.appendChild(projBtn)
-    p.appendChild(projRow)
+    add(projRow)
 
-    p.appendChild(_sep())
+    add(_sep())
 
     // ── Acciones rápidas ─────────────────────────────────────────────
     const actLbl = document.createElement('div')
     actLbl.className = 'popup-section-label'
     actLbl.textContent = 'Acciones rápidas'
-    p.appendChild(actLbl)
+    add(actLbl)
 
     const actGrid = document.createElement('div')
     actGrid.className = 'actions-grid'
@@ -845,15 +873,15 @@
       })
       actGrid.appendChild(btn)
     })
-    p.appendChild(actGrid)
+    add(actGrid)
 
-    p.appendChild(_sep())
+    add(_sep())
 
     // ── Voz del agente ───────────────────────────────────────────────
     const voiceLbl = document.createElement('div')
     voiceLbl.className = 'popup-section-label'
     voiceLbl.textContent = 'Voz del agente'
-    p.appendChild(voiceLbl)
+    add(voiceLbl)
 
     const grid = document.createElement('div')
     grid.className = 'voice-grid'
@@ -865,9 +893,9 @@
       chip.addEventListener('click', e => { e.stopPropagation(); selectVoice(v) })
       grid.appendChild(chip)
     })
-    p.appendChild(grid)
+    add(grid)
 
-    p.appendChild(_sep())
+    add(_sep())
 
     // ── Detener sesión ───────────────────────────────────────────────
     const stop = document.createElement('div')
@@ -878,7 +906,7 @@
       api('stop_session')
       closePopup()
     })
-    p.appendChild(stop)
+    add(stop)
 
     return p
   }

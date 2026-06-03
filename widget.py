@@ -57,7 +57,7 @@ CMD_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
 PROJECT_FILE = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
 ACTIVATE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_activate.txt")
 
-W, H = 360, 56
+W, H = 368, 64
 
 
 def _acquire_single_instance():
