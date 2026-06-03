@@ -6,13 +6,55 @@ import time
 
 import webview
 
+_DEPRECATED_WK_KEYS = (
+    "self.webview.setValue_forKey_(True, 'drawsTransparentBackground')",
+    "self.webview.setValue_forKey_(False, 'drawsBackground')",
+)
+_WK_TRANSPARENCY_COMMENT = (
+    "            # No usar KVC drawsTransparentBackground/drawsBackground: trace trap en macOS 13+"
+)
+
+
+def _patch_pywebview_cocoa_transparency():
+    """Evita KVC en WKWebView que provoca trace trap en macOS recientes."""
+    try:
+        from webview.platforms import cocoa
+    except ImportError:
+        return
+    path = getattr(cocoa, "__file__", None)
+    if not path:
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+    except OSError:
+        return
+    changed = False
+    for deprecated in _DEPRECATED_WK_KEYS:
+        if deprecated in src:
+            src = src.replace(deprecated, _WK_TRANSPARENCY_COMMENT)
+            changed = True
+    if not changed:
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(src)
+        import importlib
+
+        importlib.reload(cocoa)
+    except OSError:
+        pass
+
+
+_patch_pywebview_cocoa_transparency()
+
 STATE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_state.txt")
 SHOW_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_show.txt")
 VOICE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
 STOP_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
 PID_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_widget.pid")
 
-W, H = 368, 61
+W, H = 360, 56
 
 
 def _acquire_single_instance():
@@ -216,6 +258,12 @@ def run_widget():
             if native is not None:
                 native.setHasShadow_(False)
                 native.setOpaque_(False)
+                try:
+                    from AppKit import NSColor
+
+                    native.setBackgroundColor_(NSColor.clearColor())
+                except Exception:
+                    pass
             window.move(x, y)
             window.show()
         except Exception:
