@@ -323,7 +323,7 @@ def run_widget():
         height=H,
         x=x,
         y=y,
-        resizable=True,
+        resizable=False,
         frameless=True,
         transparent=True,
         background_color="#000000",
