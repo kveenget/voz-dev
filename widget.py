@@ -345,15 +345,6 @@ def run_widget():
     window.events.shown += on_ready
     window.events.loaded += on_ready
 
-    # NSApplicationActivationPolicyAccessory = 1
-    # Sin icono en Dock, no roba foco automáticamente.
-    # Debe llamarse ANTES de webview.start() / NSApp.run().
-    try:
-        from AppKit import NSApp
-        NSApp.setActivationPolicy_(1)
-    except Exception:
-        pass
-
     try:
         webview.start(debug=False)
     finally:
