@@ -134,6 +134,19 @@ class Api:
             pass
         return "ok"
 
+    def move_by(self, dx: int, dy: int):
+        """Mueve la ventana dx/dy píxeles (drag manual desde JS)."""
+        if not self._window:
+            return "ok"
+        try:
+            native = getattr(self._window, "native", None)
+            if native is not None:
+                frame = native.frame()
+                native.setFrameOrigin_((frame.origin.x + int(dx), frame.origin.y - int(dy)))
+        except Exception:
+            pass
+        return "ok"
+
     def expand(self, height: int):
         """Expande la ventana hacia abajo para mostrar el popup del menú."""
         if self._window:
