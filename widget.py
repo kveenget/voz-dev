@@ -246,7 +246,7 @@ def run_widget():
         background_color="#000000",
         shadow=False,
         on_top=True,
-        easy_drag=True,
+        easy_drag=False,
         js_api=Api(),
     )
 

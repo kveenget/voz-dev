@@ -653,7 +653,7 @@
       chip.className = 'voice-chip' + (v === activeVoice ? ' active' : '')
       chip.textContent = v
       chip.dataset.voice = v
-      chip.addEventListener('mousedown', e => { e.stopPropagation(); selectVoice(v) })
+      chip.addEventListener('click', e => { e.stopPropagation(); selectVoice(v) })
       grid.appendChild(chip)
     })
     m.appendChild(grid)
@@ -667,7 +667,7 @@
     const stop = document.createElement('div')
     stop.className = 'ctx-btn danger'
     stop.innerHTML = '<span class="ctx-btn-icon">⏹</span><span class="ctx-btn-text">Detener sesión</span>'
-    stop.addEventListener('mousedown', e => {
+    stop.addEventListener('click', e => {
       e.stopPropagation()
       api('stop_session')
       closeMenu()
@@ -694,7 +694,7 @@
     setTimeout(() => el && el.parentNode && el.parentNode.removeChild(el), 140)
   }
 
-  document.getElementById('menuDots').addEventListener('mousedown', e => {
+  document.getElementById('menuDots').addEventListener('click', e => {
     e.stopPropagation()
     menuOpen ? closeMenu() : openMenu()
   })
