@@ -48,14 +48,16 @@ def _patch_pywebview_cocoa_transparency():
 
 _patch_pywebview_cocoa_transparency()
 
-STATE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_state.txt")
-SHOW_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_show.txt")
-VOICE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
-STOP_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
-PID_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_widget.pid")
-CMD_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
-PROJECT_FILE = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
+STATE_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_state.txt")
+SHOW_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_show.txt")
+VOICE_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
+STOP_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
+PID_FILE      = os.path.join(tempfile.gettempdir(), "vozdev_widget.pid")
+CMD_FILE      = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
+PROJECT_FILE  = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
 ACTIVATE_FILE = os.path.join(tempfile.gettempdir(), "vozdev_activate.txt")
+MUTE_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_mute.txt")
+POS_FILE      = os.path.join(tempfile.gettempdir(), "vozdev_pos.txt")
 
 W, H = 368, 64
 
@@ -146,6 +148,8 @@ class Api:
             self._window.move(nx, ny)
             self._wx = nx
             self._wy = ny
+            with open(POS_FILE, "w", encoding="utf-8") as f:
+                f.write(f"{nx},{ny}")
         except Exception:
             pass
         return "ok"
@@ -181,6 +185,39 @@ class Api:
         except OSError:
             pass
         return "ok"
+
+    def toggle_mute(self):
+        """Alterna el mute del mic; retorna '1' (muted) o '0' (activo)."""
+        try:
+            current = open(MUTE_FILE, encoding="utf-8").read().strip()
+            new = "0" if current == "1" else "1"
+        except OSError:
+            new = "1"
+        try:
+            with open(MUTE_FILE, "w", encoding="utf-8") as f:
+                f.write(new)
+        except OSError:
+            pass
+        return new
+
+    def get_mute(self):
+        try:
+            return open(MUTE_FILE, encoding="utf-8").read().strip()
+        except OSError:
+            return "0"
+
+    def get_git_branch(self):
+        """Rama git del proyecto activo."""
+        try:
+            import subprocess
+            project = self.get_project()
+            r = subprocess.run(
+                ["git", "-C", project, "branch", "--show-current"],
+                capture_output=True, text=True, timeout=3,
+            )
+            return r.stdout.strip()
+        except Exception:
+            return ""
 
     def get_project(self):
         """Devuelve el proyecto activo (archivo temporal o variable de entorno)."""
@@ -311,6 +348,14 @@ def run_widget():
         pass
 
     x, y = _notch_position()
+    # Restaurar última posición guardada (si existe)
+    try:
+        data = open(POS_FILE, encoding="utf-8").read().strip()
+        sx, sy = map(int, data.split(","))
+        x, y = sx, sy
+    except Exception:
+        pass
+
     stop_poll = threading.Event()
     poll_started = threading.Event()
 

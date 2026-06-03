@@ -27,6 +27,7 @@ _VOICE_FILE   = os.path.join(tempfile.gettempdir(), "vozdev_voice.txt")
 _STOP_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_stop.txt")
 _CMD_FILE     = os.path.join(tempfile.gettempdir(), "vozdev_cmd.txt")
 _PROJECT_FILE = os.path.join(tempfile.gettempdir(), "vozdev_project.txt")
+_MUTE_FILE    = os.path.join(tempfile.gettempdir(), "vozdev_mute.txt")
 
 # RMS mínimo para detectar voz en el cliente (sin esperar el VAD del servidor).
 # Valor bajo a propósito: muestra "user" en cuanto hay audio, el servidor confirma después.
@@ -137,6 +138,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             "pre_vad": False,          # el cliente detectó voz antes del servidor
             "ejecutando_tool": False,  # hay una tool corriendo ahora mismo
             "esperando_respuesta": False,  # tool terminó, esperando que el modelo responda
+            "user_muted": _leer_archivo_str(_MUTE_FILE) == "1",
         }
         audio_queue = asyncio.Queue(maxsize=1024)
         loop = asyncio.get_event_loop()
@@ -197,6 +199,9 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                 raw = await loop.run_in_executor(
                     None, lambda: stream_in.read(cfg.CHUNK, exception_on_overflow=False)
                 )
+
+                if state["user_muted"]:
+                    continue  # lee el mic para evitar overflow pero no envía
 
                 rms = pcm_rms(raw)
 
@@ -457,6 +462,16 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                             _widget_force("thinking")
                 except OSError:
                     pass
+
+                # Mute del mic desde el widget
+                nuevo_mute = _leer_archivo_str(_MUTE_FILE) == "1"
+                if nuevo_mute != state["user_muted"]:
+                    state["user_muted"] = nuevo_mute
+                    if nuevo_mute:
+                        print("\n🔇 Mic silenciado")
+                        await ws.send(json.dumps({"type": "input_audio_buffer.clear"}))
+                    else:
+                        print("\n🎙️  Mic activo")
 
                 # Cambio de proyecto activo
                 nueva_proj = _leer_archivo_str(_PROJECT_FILE)
