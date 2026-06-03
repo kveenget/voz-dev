@@ -369,7 +369,24 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                 elif tipo == "session.updated":
                     print("⚙️  Listo — ¡habla ahora!\n")
                     _widget_force("idle")
-                    if state.pop("saludo_pendiente", False):
+                    startup_cmd = _leer_archivo_str(_CMD_FILE)
+                    if startup_cmd:
+                        try:
+                            open(_CMD_FILE, "w").close()
+                        except OSError:
+                            pass
+                        print(f"\n⚡ Comando de inicio: {startup_cmd}")
+                        await ws.send(json.dumps({
+                            "type": "conversation.item.create",
+                            "item": {
+                                "type": "message",
+                                "role": "user",
+                                "content": [{"type": "input_text", "text": startup_cmd}],
+                            },
+                        }))
+                        await ws.send(json.dumps({"type": "response.create"}))
+                        _widget_force("thinking")
+                    elif state.pop("saludo_pendiente", False):
                         await _enviar_saludo_inicial(ws)
 
                 elif tipo == "error":
