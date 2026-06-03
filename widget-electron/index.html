@@ -775,12 +775,54 @@
     return Promise.resolve(null)
   }
 
-  // ── Activar (clic en pill) ────────────────────────────────────────────────────
-  document.querySelector('.pill').addEventListener('click', e => {
-    if (e.target.closest('#menuDots') || e.target.closest('.popup-panel')) return
-    api('activate')
-    setState('connecting')
-  })
+  // ── Drag + Activar ────────────────────────────────────────────────────────────
+  ;(function() {
+    const pill = document.querySelector('.pill')
+    let hasDragged = false
+
+    function isInteractive(el) {
+      return el.closest('#menuDots') ||
+             el.closest('.action-orb-wrap') ||
+             el.closest('.agent-icon') ||
+             el.closest('.popup-panel')
+    }
+
+    pill.addEventListener('mousedown', e => {
+      if (e.button !== 0 || isInteractive(e.target)) return
+      hasDragged = false
+      let dragging = false
+      let lastX = e.screenX
+      let lastY = e.screenY
+
+      function onMove(ev) {
+        const dx = ev.screenX - lastX
+        const dy = ev.screenY - lastY
+        if (!dragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) dragging = true
+        if (dragging) {
+          lastX = ev.screenX
+          lastY = ev.screenY
+          api('move_by', dx, dy)
+          hasDragged = true
+        }
+      }
+
+      function onUp() {
+        dragging = false
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    })
+
+    pill.addEventListener('click', e => {
+      if (isInteractive(e.target)) return
+      if (hasDragged) { hasDragged = false; return }
+      api('activate')
+      setState('connecting')
+    })
+  })()
 
   // ── Popup expandido ───────────────────────────────────────────────────────────
   const VOICES = ['cedar','alloy','ash','ballad','coral','echo','sage','shimmer','verse']

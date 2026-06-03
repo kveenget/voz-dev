@@ -94,6 +94,8 @@ def set_state(state):
 
 class Api:
     _window = None  # inyectado en run_widget() después de crear la ventana
+    _wx: int = 0   # posición actual de la ventana (actualizada en move_by)
+    _wy: int = 0
 
     def get_state(self):
         try:
@@ -131,6 +133,20 @@ class Api:
             with open(STOP_FILE, "w", encoding="utf-8") as f:
                 f.write(str(time.time()))
         except OSError:
+            pass
+        return "ok"
+
+    def move_by(self, dx: int, dy: int):
+        """Drag manual: mueve la ventana dx/dy píxeles via window.move() (thread-safe)."""
+        if not self._window:
+            return "ok"
+        try:
+            nx = self._wx + int(dx)
+            ny = self._wy + int(dy)
+            self._window.move(nx, ny)
+            self._wx = nx
+            self._wy = ny
+        except Exception:
             pass
         return "ok"
 
@@ -299,6 +315,7 @@ def run_widget():
     poll_started = threading.Event()
 
     api = Api()
+    api._wx, api._wy = x, y
     window = webview.create_window(
         title="",
         html=HTML,
