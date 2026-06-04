@@ -64,4 +64,4 @@ HOTKEY_ENABLED = activation_mode() == "hotkey"
 # ── Wake Word (openWakeWord) — open source, sin API key ─────────────────────
 # Modelos disponibles: hey_jarvis, alexa, hey_mycroft, hey_rhasspy
 WAKE_KEYWORD     = os.getenv("MIKE_KEYWORD", "hey_jarvis")
-WAKE_SENSITIVITY = float(os.getenv("MIKE_SENSITIVITY", "0.5"))
+WAKE_SENSITIVITY = float(os.getenv("MIKE_SENSITIVITY", "0.3"))

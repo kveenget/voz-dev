@@ -18,13 +18,15 @@ class WakeWordEngine:
     el primer uso desde GitHub (requiere internet la primera vez).
     """
 
-    def __init__(self, model: str = "hey_jarvis", threshold: float = 0.5, on_detect=None):
+    def __init__(self, model: str = "hey_jarvis", threshold: float = 0.3, on_detect=None):
         self._model_name = model
         self._threshold  = max(0.0, min(1.0, threshold))
         self._on_detect  = on_detect
         self._running    = False
         self._thread: threading.Thread | None = None
         self._detected   = threading.Event()
+        self._stream     = None   # referencia para poder cerrar desde stop()
+        self._p          = None
 
     # ── Ciclo de vida ────────────────────────────────────────────────────────
 
@@ -41,6 +43,10 @@ class WakeWordEngine:
     def stop(self) -> None:
         self._running = False
         self._detected.set()
+        # Cierra el stream activamente para desbloquear stream.read()
+        self._close_stream()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=3.0)
 
     def wait_for_detection(self) -> None:
         self._detected.wait()
@@ -52,15 +58,13 @@ class WakeWordEngine:
         from openwakeword.model import Model
 
         while self._running:
-            p = None
-            stream = None
             try:
                 print(f"⏳ Cargando modelo '{self._model_name}' (primera vez descarga ~5MB)...")
                 model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
                 print(f"✅ Modelo listo — di '{self._model_name}'")
 
-                p = pyaudio.PyAudio()
-                stream = p.open(
+                self._p = pyaudio.PyAudio()
+                self._stream = self._p.open(
                     rate=_RATE,
                     channels=1,
                     format=pyaudio.paInt16,
@@ -69,7 +73,7 @@ class WakeWordEngine:
                 )
 
                 while self._running:
-                    audio = stream.read(_CHUNK, exception_on_overflow=False)
+                    audio = self._stream.read(_CHUNK, exception_on_overflow=False)
                     chunk = np.frombuffer(audio, dtype=np.int16)
                     scores = model.predict(chunk)
 
@@ -87,17 +91,22 @@ class WakeWordEngine:
                     print(f"⚠️  WakeWordEngine error: {e} — reintentando en 3s")
                     time.sleep(3)
             finally:
-                if stream:
-                    try:
-                        stream.stop_stream()
-                        stream.close()
-                    except Exception:
-                        pass
-                if p:
-                    try:
-                        p.terminate()
-                    except Exception:
-                        pass
+                self._close_stream()
+
+    def _close_stream(self) -> None:
+        if self._stream:
+            try:
+                self._stream.stop_stream()
+                self._stream.close()
+            except Exception:
+                pass
+            self._stream = None
+        if self._p:
+            try:
+                self._p.terminate()
+            except Exception:
+                pass
+            self._p = None
 
 
 # ── Función pública compatible con app.py ───────────────────────────────────
@@ -110,5 +119,5 @@ def escuchar_wake_word() -> None:
     )
     engine.start()
     engine.wait_for_detection()
-    engine.stop()
+    engine.stop()          # cierra PyAudio antes de que el realtime abra el mic
     set_widget_visible(True)
