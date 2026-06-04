@@ -55,7 +55,9 @@ class WakeWordEngine:
             p = None
             stream = None
             try:
+                print(f"⏳ Cargando modelo '{self._model_name}' (primera vez descarga ~5MB)...")
                 model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
+                print(f"✅ Modelo listo — di '{self._model_name}'")
 
                 p = pyaudio.PyAudio()
                 stream = p.open(
