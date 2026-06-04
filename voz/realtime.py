@@ -116,7 +116,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             channels=1,
             rate=cfg.RATE,
             output=True,
-            frames_per_buffer=cfg.CHUNK * 2,
+            frames_per_buffer=cfg.CHUNK * 8,
         )
 
         state = {
@@ -183,9 +183,19 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                 pcm = await audio_queue.get()
                 if state["interrumpir"]:
                     continue
+
+                # Acumula todos los chunks disponibles en un solo write
+                # para evitar underruns por latencia de scheduling asyncio
+                buf = bytearray(pcm)
+                while not audio_queue.empty():
+                    try:
+                        buf.extend(audio_queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        break
+
                 _widget_force("ai")
                 try:
-                    await loop.run_in_executor(None, stream_out.write, pcm)
+                    await loop.run_in_executor(None, stream_out.write, bytes(buf))
                 except OSError:
                     pass
                 if state["pendiente_fin"] and audio_queue.empty():
