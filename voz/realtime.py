@@ -2,7 +2,9 @@ import asyncio
 import base64
 import json
 import os
+import queue as _q
 import tempfile
+import threading as _th
 import time
 
 import pyaudio
@@ -55,6 +57,20 @@ async def _enviar_saludo_inicial(ws) -> None:
 async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
     uri = "wss://api.openai.com/v1/realtime?model=gpt-realtime-2"
     headers = {"Authorization": f"Bearer {cfg.OPENAI_API_KEY}"}
+
+    # TLS warmup — precalienta el ticket TLS para reducir latencia en primera conexión
+    async def _tls_warmup():
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("api.openai.com", 443, ssl=cfg.ssl_context),
+                timeout=3.0,
+            )
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+    asyncio.ensure_future(_tls_warmup())
 
     print("🎙️  Conectando con GPT Realtime 2...")
     async with websockets.connect(uri, additional_headers=headers, ssl=cfg.ssl_context) as ws:
@@ -119,6 +135,67 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             frames_per_buffer=cfg.CHUNK * 8,
         )
 
+        _pcm_q: _q.Queue = _q.Queue()
+
+        def _audio_out_thread():
+            """Hilo dedicado — escribe al hardware sin gaps de asyncio."""
+            THRESH = cfg.RATE * 2 // 10  # 100ms de audio antes de escribir
+            buf = bytearray()
+            while True:
+                try:
+                    item = _pcm_q.get(timeout=0.08)
+                except _q.Empty:
+                    if buf:
+                        if not state.get("interrumpir"):
+                            try:
+                                stream_out.write(bytes(buf))
+                            except OSError:
+                                pass
+                        buf.clear()
+                        if state.get("pendiente_fin") and _pcm_q.empty():
+                            loop.call_soon_threadsafe(_fin_reproduccion)
+                    continue
+
+                if item is None:  # sentinel → parar
+                    if buf and not state.get("interrumpir"):
+                        try:
+                            stream_out.write(bytes(buf))
+                        except OSError:
+                            pass
+                    break
+
+                if state.get("interrumpir"):
+                    buf.clear()
+                    continue
+
+                buf.extend(item)
+                # Vacía todo lo disponible en la cola para escribir en un solo bloque
+                while True:
+                    try:
+                        extra = _pcm_q.get_nowait()
+                        if extra is None:
+                            if buf:
+                                try:
+                                    stream_out.write(bytes(buf))
+                                except OSError:
+                                    pass
+                            return
+                        buf.extend(extra)
+                    except _q.Empty:
+                        break
+
+                if len(buf) >= THRESH:
+                    try:
+                        stream_out.write(bytes(buf))
+                    except OSError:
+                        pass
+                    buf.clear()
+                    if state.get("pendiente_fin") and _pcm_q.empty():
+                        loop.call_soon_threadsafe(_fin_reproduccion)
+
+        _pb = _th.Thread(target=_audio_out_thread, daemon=True, name="audio-out")
+        _pb.start()
+
         state = {
             "activo": True,
             "call_id": None,
@@ -179,27 +256,19 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
         # ── Corrutinas ──────────────────────────────────────────────────────
 
         async def reproducir_audio():
+            """Puente asyncio → hilo de audio: no hace writes directos."""
             while state["activo"]:
                 pcm = await audio_queue.get()
                 if state["interrumpir"]:
+                    _drain_audio_queue()
+                    while True:
+                        try:
+                            _pcm_q.get_nowait()
+                        except _q.Empty:
+                            break
                     continue
-
-                # Acumula todos los chunks disponibles en un solo write
-                # para evitar underruns por latencia de scheduling asyncio
-                buf = bytearray(pcm)
-                while not audio_queue.empty():
-                    try:
-                        buf.extend(audio_queue.get_nowait())
-                    except asyncio.QueueEmpty:
-                        break
-
                 _widget_force("ai")
-                try:
-                    await loop.run_in_executor(None, stream_out.write, bytes(buf))
-                except OSError:
-                    pass
-                if state["pendiente_fin"] and audio_queue.empty():
-                    _fin_reproduccion()
+                _pcm_q.put(pcm)
 
         async def capturar_y_enviar():
             while state["activo"]:
@@ -502,6 +571,8 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             state["activo"] = False
             stream_in.stop_stream()
             stream_in.close()
+            _pcm_q.put(None)  # sentinel para detener el hilo de audio
+            _pb.join(timeout=1.5)
             stream_out.stop_stream()
             stream_out.close()
             p.terminate()

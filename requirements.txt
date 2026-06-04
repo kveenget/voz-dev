@@ -8,5 +8,6 @@ pynput>=1.7.6
 keyboard>=0.13.5
 rumps>=0.4.0
 numpy>=1.24.0
+pyobjc-framework-Quartz>=9.0
 # Wake word — open source, sin API key
 openwakeword>=0.6.0

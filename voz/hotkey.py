@@ -178,6 +178,91 @@ def _start_keyboard_lib(spec: str) -> bool:
         return False
 
 
+def _start_cgevent_listener(spec: str) -> bool:
+    """CGEvent tap via Quartz — más fiable que pynput en macOS 14+.
+
+    Usa listen-only mode: no requiere Accessibility para atajos con modificadores.
+    """
+    try:
+        from Quartz import (
+            CGEventTapCreate,
+            CGEventGetFlags,
+            CGEventGetIntegerValueField,
+            kCGSessionEventTap,
+            kCGHeadInsertEventTap,
+            kCGEventTapOptionListenOnly,
+            kCGEventKeyDown,
+            CFMachPortCreateRunLoopSource,
+            CFRunLoopAddSource,
+            CFRunLoopGetCurrent,
+            CFRunLoopRun,
+            kCFRunLoopDefaultMode,
+            CGEventMaskBit,
+        )
+    except ImportError:
+        return False
+
+    try:
+        required_mods, key_char = _parse_spec(spec)
+    except ValueError:
+        return False
+
+    _KEY_CODES: dict[str, int] = {
+        "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+        "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+        "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+        "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+        "y": 16, "z": 6, "space": 49,
+    }
+    target_vk = _KEY_CODES.get(key_char)
+    if target_vk is None:
+        return False
+
+    kCGEventFlagMaskAlternate = 0x080000
+    kCGEventFlagMaskShift     = 0x020000
+    kCGEventFlagMaskControl   = 0x040000
+    kCGEventFlagMaskCommand   = 0x100000
+    kCGKeyboardEventKeycode   = 9
+
+    mod_mask = 0
+    if "alt"   in required_mods: mod_mask |= kCGEventFlagMaskAlternate
+    if "shift" in required_mods: mod_mask |= kCGEventFlagMaskShift
+    if "ctrl"  in required_mods: mod_mask |= kCGEventFlagMaskControl
+    if "cmd"   in required_mods: mod_mask |= kCGEventFlagMaskCommand
+
+    def _callback(proxy, event_type, event, refcon):
+        try:
+            flags = CGEventGetFlags(event)
+            vk    = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
+            if int(vk) == target_vk and (int(flags) & mod_mask) == mod_mask:
+                trigger_activate(f"cgevent {spec}")
+        except Exception:
+            pass
+        return event
+
+    event_mask = CGEventMaskBit(kCGEventKeyDown)
+    tap = CGEventTapCreate(
+        kCGSessionEventTap,
+        kCGHeadInsertEventTap,
+        kCGEventTapOptionListenOnly,
+        event_mask,
+        _callback,
+        None,
+    )
+    if not tap:
+        return False
+
+    source = CFMachPortCreateRunLoopSource(None, tap, 0)
+
+    def _run_loop():
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopDefaultMode)
+        CFRunLoopRun()
+
+    t = threading.Thread(target=_run_loop, daemon=True, name="cgevent-tap")
+    t.start()
+    return True
+
+
 def start_hotkey_listener(spec: str, extra_spec: str | None = None) -> str:
     global _using_pynput
     _using_pynput = False
@@ -186,6 +271,10 @@ def start_hotkey_listener(spec: str, extra_spec: str | None = None) -> str:
 
     trusted = _accessibility_trusted()
     lines = [f"   Atajos: {spec}"]
+
+    # Intenta CGEvent tap primero (más fiable en macOS 14+, no necesita Accessibility)
+    if sys.platform == "darwin" and _start_cgevent_listener(spec):
+        lines.append(f"   CGEvent tap: {spec}")
 
     if _pynput_available():
         try:
