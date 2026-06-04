@@ -90,6 +90,8 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             f"fondo={gate_txt}  {duplex}"
         )
 
+        voz_inicial = _leer_archivo_str(_VOICE_FILE) or cfg.VOZ_VOICE
+
         await ws.send(
             json.dumps(
                 {
@@ -102,7 +104,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                             "input": audio_input,
                             "output": {
                                 "format": {"type": "audio/pcm", "rate": 24000},
-                                "voice": cfg.VOZ_VOICE,
+                                "voice": voz_inicial,
                             },
                         },
                         "tools": session_tools(),
@@ -403,7 +405,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
 
         async def vigilar_widget():
             """Detecta cambios de voz, stop, comandos rápidos y proyecto desde el widget."""
-            voz_activa = cfg.VOZ_VOICE
+            voz_activa = voz_inicial
             stop_ts = _leer_ts(_STOP_FILE)
             try:
                 cmd_mtime = os.path.getmtime(_CMD_FILE)
@@ -421,6 +423,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                     await ws.send(json.dumps({
                         "type": "session.update",
                         "session": {
+                            "type": "realtime",
                             "audio": {
                                 "output": {
                                     "format": {"type": "audio/pcm", "rate": 24000},
