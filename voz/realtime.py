@@ -415,15 +415,20 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                 if nueva_voz and nueva_voz != voz_activa:
                     voz_activa = nueva_voz
                     print(f"\n🎙️  Cambiando voz → {nueva_voz}")
+                    # Solo audio.output — no re-enviar audio.input para no
+                    # resetear VAD ni transcripción (evita corte de audio)
                     cfg_voz = {
-                        **_session_cfg,
+                        "type": _session_cfg["type"],
+                        "instructions": _session_cfg["instructions"],
+                        "output_modalities": _session_cfg["output_modalities"],
                         "audio": {
-                            **_session_cfg["audio"],
                             "output": {
                                 **_session_cfg["audio"]["output"],
                                 "voice": nueva_voz,
                             },
                         },
+                        "tools": _session_cfg["tools"],
+                        "tool_choice": _session_cfg["tool_choice"],
                     }
                     await ws.send(json.dumps({"type": "session.update", "session": cfg_voz}))
 
