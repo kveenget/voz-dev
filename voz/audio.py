@@ -1,7 +1,6 @@
 import array
 import struct
 import time
-from asyncio import Queue, QueueEmpty
 
 import pyaudio
 
@@ -60,12 +59,12 @@ def atenuar_ruido_suave(data: bytes, gate_rms: float) -> bytes:
     return samples.tobytes()
 
 
-def mic_en_mute(state: dict, audio_queue: Queue) -> bool:
+def mic_en_mute(state: dict, pcm_q=None) -> bool:
     if not cfg.VOZ_HALF_DUPLEX:
         return False
     if state["reproduciendo"] or state["pendiente_fin"]:
         return True
-    if not audio_queue.empty():
+    if pcm_q is not None and not pcm_q.empty():
         return True
     if time.time() < state.get("mute_hasta", 0):
         return True

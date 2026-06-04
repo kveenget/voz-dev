@@ -137,6 +137,13 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
 
         _pcm_q: _q.Queue = _q.Queue()
 
+        def _drain_pcm_q() -> None:
+            while True:
+                try:
+                    _pcm_q.get_nowait()
+                except _q.Empty:
+                    break
+
         def _audio_out_thread():
             """Hilo dedicado — escribe al hardware sin gaps de asyncio."""
             THRESH = cfg.RATE * 2 // 10  # 100ms de audio antes de escribir
@@ -193,9 +200,6 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                     if state.get("pendiente_fin") and _pcm_q.empty():
                         loop.call_soon_threadsafe(_fin_reproduccion)
 
-        _pb = _th.Thread(target=_audio_out_thread, daemon=True, name="audio-out")
-        _pb.start()
-
         state = {
             "activo": True,
             "call_id": None,
@@ -214,7 +218,6 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             "esperando_respuesta": False,  # tool terminó, esperando que el modelo responda
             "user_muted": _leer_archivo_str(_MUTE_FILE) == "1",
         }
-        audio_queue = asyncio.Queue(maxsize=1024)
         loop = asyncio.get_event_loop()
 
         # ── Helpers de estado ───────────────────────────────────────────────
@@ -246,29 +249,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             if not state["ejecutando_tool"] and not state["esperando_respuesta"]:
                 _widget_force("idle")
 
-        def _drain_audio_queue() -> None:
-            while True:
-                try:
-                    audio_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-
         # ── Corrutinas ──────────────────────────────────────────────────────
-
-        async def reproducir_audio():
-            """Puente asyncio → hilo de audio: no hace writes directos."""
-            while state["activo"]:
-                pcm = await audio_queue.get()
-                if state["interrumpir"]:
-                    _drain_audio_queue()
-                    while True:
-                        try:
-                            _pcm_q.get_nowait()
-                        except _q.Empty:
-                            break
-                    continue
-                _widget_force("ai")
-                _pcm_q.put(pcm)
 
         async def capturar_y_enviar():
             while state["activo"]:
@@ -286,7 +267,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                     print("\n⚡ Interrumpiendo...")
                     state["interrumpir"] = True
                     state["pendiente_fin"] = False
-                    _drain_audio_queue()
+                    _drain_pcm_q()
                     _fin_reproduccion()
                     _widget_force("user")
                     state["pre_vad"] = True
@@ -308,7 +289,7 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                         if state["pre_vad"] and rms < _PRE_VAD_RMS * 0.35:
                             state["pre_vad"] = False
 
-                if mic_en_mute(state, audio_queue):
+                if mic_en_mute(state, _pcm_q):
                     continue
 
                 if state.pop("limpiar_buffer_mic", False):
@@ -339,11 +320,12 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                         state["pendiente_fin"] = False
                         state["esperando_respuesta"] = False
                         pcm = base64.b64decode(evento["delta"])
-                        await audio_queue.put(pcm)
+                        _widget_force("ai")
+                        _pcm_q.put(pcm)  # directo al hilo de audio, sin asyncio Queue
 
                 elif tipo == "response.output_audio.done":
                     state["pendiente_fin"] = True
-                    if audio_queue.empty():
+                    if _pcm_q.empty():
                         _fin_reproduccion()
 
                 # ── Transcripción del agente (solo log) ────────────────────
@@ -564,7 +546,6 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
             await asyncio.gather(
                 capturar_y_enviar(),
                 recibir_eventos(),
-                reproducir_audio(),
                 vigilar_widget(),
             )
         finally:
