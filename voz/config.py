@@ -60,3 +60,8 @@ def activation_mode() -> str:
 # Compat con código que usaba WAKE_ENABLED
 WAKE_ENABLED = activation_mode() == "wake"
 HOTKEY_ENABLED = activation_mode() == "hotkey"
+
+# ── Wake Word (Porcupine) ────────────────────────────────────────────────────
+PICOVOICE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY", "")
+WAKE_SENSITIVITY = float(os.getenv("MIKE_SENSITIVITY", "0.5"))
+WAKE_KEYWORD_PATH = os.path.join(ROOT_DIR, "models", "hey-mike_mac.ppn")

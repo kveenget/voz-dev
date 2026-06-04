@@ -7,3 +7,6 @@ pywebview>=5.0
 pynput>=1.7.6
 keyboard>=0.13.5
 rumps>=0.4.0
+# Wake word (Porcupine) — requiere PICOVOICE_ACCESS_KEY en .env
+pvporcupine>=3.0.0
+pvrecorder>=1.2.0

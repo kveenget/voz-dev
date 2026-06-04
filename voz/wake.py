@@ -1,130 +1,128 @@
-import json
-import os
-import struct
-import tempfile
-import urllib.request
-import wave
-
-import pyaudio
+import threading
+import time
 
 from voz import config as cfg
 from voz.widget_ctl import set_widget_state, set_widget_visible
 
-WAKE_WORDS = [
-    "hey mike",
-    "hey mic",
-    "ei mike",
-    "hey my",
-    "oye mike",
-    "a mike",
-    "mike",
-    "hei mike",
-    "hay mike",
-    "hey maik",
-    "ey mike",
-    "hey mate",
-    "hey mickey",
-    "hey mick",
-    "hey might",
-    "hey mk",
-    "hey nike",
-    "hey bike",
-    "hey like",
-    "mãe",
-    "hey mae",
-    "ei mae",
-    "hey mike!",
-    "hey, mike",
-    "hey, mike!",
-]
-CHUNK_SECS = 2
 
+class WakeWordEngine:
+    """Detecta 'Hey Mike' con Porcupine en un hilo separado.
 
-def escuchar_wake_word() -> None:
-    print("😴 Esperando 'Hey Mike'...")
-    set_widget_state("idle")
+    Soporta reconexión automática si el mic se desconecta.
+    """
 
-    p = pyaudio.PyAudio()
-    stream = p.open(
-        format=pyaudio.paInt16,
-        channels=1,
-        rate=16000,
-        input=True,
-        frames_per_buffer=1024,
-    )
+    def __init__(
+        self,
+        access_key: str,
+        keyword_path: str,
+        sensitivity: float = 0.5,
+        on_detect=None,
+    ):
+        self._access_key = access_key
+        self._keyword_path = keyword_path
+        self._sensitivity = max(0.0, min(1.0, sensitivity))
+        self._on_detect = on_detect
+        self._thread: threading.Thread | None = None
+        self._running = False
+        self._porcupine = None
+        self._recorder = None
+        self._detected = threading.Event()
 
-    try:
-        while True:
-            frames = []
-            for _ in range(0, int(16000 / 1024 * CHUNK_SECS)):
-                data = stream.read(1024, exception_on_overflow=False)
-                frames.append(data)
+    # ── Ciclo de vida ────────────────────────────────────────────────────────
 
-            all_samples = b"".join(frames)
-            samples = struct.unpack_from(f"{len(all_samples) // 2}h", all_samples)
-            rms = (sum(s * s for s in samples) / len(samples)) ** 0.5
-            if rms < 200:
-                continue
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._detected.clear()
+        self._thread = threading.Thread(
+            target=self._run, daemon=True, name="wake-word"
+        )
+        self._thread.start()
+        print("😴 Esperando 'Hey Mike'...")
+        set_widget_state("idle")
 
-            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-            wf = wave.open(tmp.name, "wb")
-            wf.setnchannels(1)
-            wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))
-            wf.setframerate(16000)
-            wf.writeframes(all_samples)
-            wf.close()
+    def stop(self) -> None:
+        self._running = False
+        self._detected.set()  # desbloquea wait_for_detection si está esperando
+        self._cleanup()
 
+    def wait_for_detection(self) -> None:
+        """Bloquea hasta que se detecte el wake word o se llame stop()."""
+        self._detected.wait()
+        self._detected.clear()
+
+    # ── Hilo de detección ────────────────────────────────────────────────────
+
+    def _run(self) -> None:
+        import pvporcupine
+        import pvrecorder
+
+        while self._running:
             try:
-                with open(tmp.name, "rb") as f:
-                    audio_data = f.read()
-
-                boundary = "----WebKitFormBoundary"
-                body = (
-                    f"--{boundary}\r\n"
-                    f'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n'
-                    f"Content-Type: audio/wav\r\n\r\n"
-                ).encode() + audio_data + (
-                    f"\r\n--{boundary}\r\n"
-                    f'Content-Disposition: form-data; name="model"\r\n\r\n'
-                    f"whisper-1\r\n"
-                    f"--{boundary}--\r\n"
-                ).encode()
-
-                req = urllib.request.Request(
-                    "https://api.openai.com/v1/audio/transcriptions",
-                    data=body,
-                    headers={
-                        "Authorization": f"Bearer {cfg.OPENAI_API_KEY}",
-                        "Content-Type": f"multipart/form-data; boundary={boundary}",
-                    },
+                self._porcupine = pvporcupine.create(
+                    access_key=self._access_key,
+                    keyword_paths=[self._keyword_path],
+                    sensitivities=[self._sensitivity],
                 )
-                with urllib.request.urlopen(req, context=cfg.ssl_context, timeout=5) as r:
-                    result = json.loads(r.read())
-                    texto = result.get("text", "").lower().strip()
+                self._recorder = pvrecorder.PvRecorder(
+                    frame_length=self._porcupine.frame_length
+                )
+                self._recorder.start()
 
-                if texto:
-                    print(f"  👂 {texto}")
-
-                for ww in WAKE_WORDS:
-                    if ww in texto:
+                while self._running:
+                    pcm = self._recorder.read()
+                    result = self._porcupine.process(pcm)
+                    if result >= 0:
                         print("\n🎙️  Hey Mike detectado!")
-                        set_widget_visible(True)
-                        stream.stop_stream()
-                        stream.close()
-                        p.terminate()
-                        os.unlink(tmp.name)
-                        return
+                        if self._on_detect:
+                            self._on_detect()
+                        self._detected.set()
 
+            except Exception as e:
+                if self._running:
+                    print(f"⚠️  WakeWordEngine error: {e} — reintentando en 3s")
+                    time.sleep(3)
+            finally:
+                self._cleanup()
+
+    def _cleanup(self) -> None:
+        if self._recorder:
+            try:
+                self._recorder.stop()
             except Exception:
                 pass
-
+        if self._porcupine:
             try:
-                os.unlink(tmp.name)
-            except OSError:
+                self._porcupine.delete()
+            except Exception:
                 pass
+        self._recorder = None
+        self._porcupine = None
 
-    except KeyboardInterrupt:
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-        raise
+
+# ── Función pública compatible con app.py ───────────────────────────────────
+
+def escuchar_wake_word() -> None:
+    """Bloquea hasta detectar 'Hey Mike' con Porcupine y hace visible el widget."""
+    if not cfg.PICOVOICE_ACCESS_KEY:
+        raise RuntimeError(
+            "Falta PICOVOICE_ACCESS_KEY en .env — regístrate en console.picovoice.ai"
+        )
+
+    import os
+    if not os.path.isfile(cfg.WAKE_KEYWORD_PATH):
+        raise FileNotFoundError(
+            f"Keyword no encontrada: {cfg.WAKE_KEYWORD_PATH}\n"
+            "Genera 'hey-mike_mac.ppn' en console.picovoice.ai y ponlo en models/"
+        )
+
+    engine = WakeWordEngine(
+        access_key=cfg.PICOVOICE_ACCESS_KEY,
+        keyword_path=cfg.WAKE_KEYWORD_PATH,
+        sensitivity=cfg.WAKE_SENSITIVITY,
+    )
+    engine.start()
+    engine.wait_for_detection()
+    engine.stop()
+    set_widget_visible(True)
