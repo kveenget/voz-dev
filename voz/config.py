@@ -64,4 +64,6 @@ HOTKEY_ENABLED = activation_mode() == "hotkey"
 # ── Wake Word (Porcupine) ────────────────────────────────────────────────────
 PICOVOICE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY", "")
 WAKE_SENSITIVITY = float(os.getenv("MIKE_SENSITIVITY", "0.5"))
+# Keyword built-in (ej: "jarvis", "alexa", "hey google") o vacío para usar .ppn
+WAKE_KEYWORD = os.getenv("MIKE_KEYWORD", "jarvis")
 WAKE_KEYWORD_PATH = os.path.join(ROOT_DIR, "models", "hey-mike_mac.ppn")

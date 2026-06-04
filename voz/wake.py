@@ -6,20 +6,23 @@ from voz.widget_ctl import set_widget_state, set_widget_visible
 
 
 class WakeWordEngine:
-    """Detecta 'Hey Mike' con Porcupine en un hilo separado.
+    """Detecta la wake word con Porcupine en un hilo separado.
 
+    Usa keyword built-in (ej: "jarvis") o un archivo .ppn custom.
     Soporta reconexión automática si el mic se desconecta.
     """
 
     def __init__(
         self,
         access_key: str,
-        keyword_path: str,
+        keyword: str = "jarvis",
+        keyword_path: str = "",
         sensitivity: float = 0.5,
         on_detect=None,
     ):
         self._access_key = access_key
-        self._keyword_path = keyword_path
+        self._keyword = keyword          # built-in (tiene prioridad si está definida)
+        self._keyword_path = keyword_path  # .ppn custom (fallback)
         self._sensitivity = max(0.0, min(1.0, sensitivity))
         self._on_detect = on_detect
         self._thread: threading.Thread | None = None
@@ -39,7 +42,8 @@ class WakeWordEngine:
             target=self._run, daemon=True, name="wake-word"
         )
         self._thread.start()
-        print("😴 Esperando 'Hey Mike'...")
+        label = self._keyword or self._keyword_path
+        print(f"😴 Esperando '{label}'...")
         set_widget_state("idle")
 
     def stop(self) -> None:
@@ -48,7 +52,7 @@ class WakeWordEngine:
         self._cleanup()
 
     def wait_for_detection(self) -> None:
-        """Bloquea hasta que se detecte el wake word o se llame stop()."""
+        """Bloquea hasta que se detecte la wake word o se llame stop()."""
         self._detected.wait()
         self._detected.clear()
 
@@ -60,11 +64,19 @@ class WakeWordEngine:
 
         while self._running:
             try:
-                self._porcupine = pvporcupine.create(
-                    access_key=self._access_key,
-                    keyword_paths=[self._keyword_path],
-                    sensitivities=[self._sensitivity],
-                )
+                if self._keyword:
+                    self._porcupine = pvporcupine.create(
+                        access_key=self._access_key,
+                        keywords=[self._keyword],
+                        sensitivities=[self._sensitivity],
+                    )
+                else:
+                    self._porcupine = pvporcupine.create(
+                        access_key=self._access_key,
+                        keyword_paths=[self._keyword_path],
+                        sensitivities=[self._sensitivity],
+                    )
+
                 self._recorder = pvrecorder.PvRecorder(
                     frame_length=self._porcupine.frame_length
                 )
@@ -74,7 +86,7 @@ class WakeWordEngine:
                     pcm = self._recorder.read()
                     result = self._porcupine.process(pcm)
                     if result >= 0:
-                        print("\n🎙️  Hey Mike detectado!")
+                        print("\n🎙️  Wake word detectado!")
                         if self._on_detect:
                             self._on_detect()
                         self._detected.set()
@@ -104,22 +116,24 @@ class WakeWordEngine:
 # ── Función pública compatible con app.py ───────────────────────────────────
 
 def escuchar_wake_word() -> None:
-    """Bloquea hasta detectar 'Hey Mike' con Porcupine y hace visible el widget."""
+    """Bloquea hasta detectar la wake word con Porcupine y muestra el widget."""
     if not cfg.PICOVOICE_ACCESS_KEY:
         raise RuntimeError(
             "Falta PICOVOICE_ACCESS_KEY en .env — regístrate en console.picovoice.ai"
         )
 
     import os
-    if not os.path.isfile(cfg.WAKE_KEYWORD_PATH):
+    use_builtin = bool(cfg.WAKE_KEYWORD)
+    if not use_builtin and not os.path.isfile(cfg.WAKE_KEYWORD_PATH):
         raise FileNotFoundError(
             f"Keyword no encontrada: {cfg.WAKE_KEYWORD_PATH}\n"
-            "Genera 'hey-mike_mac.ppn' en console.picovoice.ai y ponlo en models/"
+            "Pon el .ppn en models/ o define MIKE_KEYWORD con una keyword built-in"
         )
 
     engine = WakeWordEngine(
         access_key=cfg.PICOVOICE_ACCESS_KEY,
-        keyword_path=cfg.WAKE_KEYWORD_PATH,
+        keyword=cfg.WAKE_KEYWORD if use_builtin else "",
+        keyword_path="" if use_builtin else cfg.WAKE_KEYWORD_PATH,
         sensitivity=cfg.WAKE_SENSITIVITY,
     )
     engine.start()
