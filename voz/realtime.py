@@ -92,27 +92,22 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
 
         voz_inicial = _leer_archivo_str(_VOICE_FILE) or cfg.VOZ_VOICE
 
-        await ws.send(
-            json.dumps(
-                {
-                    "type": "session.update",
-                    "session": {
-                        "type": "realtime",
-                        "instructions": system_prompt(),
-                        "output_modalities": ["audio"],
-                        "audio": {
-                            "input": audio_input,
-                            "output": {
-                                "format": {"type": "audio/pcm", "rate": 24000},
-                                "voice": voz_inicial,
-                            },
-                        },
-                        "tools": session_tools(),
-                        "tool_choice": "auto",
-                    },
-                }
-            )
-        )
+        _session_cfg = {
+            "type": "realtime",
+            "instructions": system_prompt(),
+            "output_modalities": ["audio"],
+            "audio": {
+                "input": audio_input,
+                "output": {
+                    "format": {"type": "audio/pcm", "rate": 24000},
+                    "voice": voz_inicial,
+                },
+            },
+            "tools": session_tools(),
+            "tool_choice": "auto",
+        }
+
+        await ws.send(json.dumps({"type": "session.update", "session": _session_cfg}))
 
         p = pyaudio.PyAudio()
         stream_in, capture_rate = abrir_microfono(p)
@@ -420,18 +415,17 @@ async def conectar_realtime(*, saludo_inicial: bool = False) -> None:
                 if nueva_voz and nueva_voz != voz_activa:
                     voz_activa = nueva_voz
                     print(f"\n🎙️  Cambiando voz → {nueva_voz}")
-                    await ws.send(json.dumps({
-                        "type": "session.update",
-                        "session": {
-                            "type": "realtime",
-                            "audio": {
-                                "output": {
-                                    "format": {"type": "audio/pcm", "rate": 24000},
-                                    "voice": nueva_voz,
-                                }
-                            }
-                        }
-                    }))
+                    cfg_voz = {
+                        **_session_cfg,
+                        "audio": {
+                            **_session_cfg["audio"],
+                            "output": {
+                                **_session_cfg["audio"]["output"],
+                                "voice": nueva_voz,
+                            },
+                        },
+                    }
+                    await ws.send(json.dumps({"type": "session.update", "session": cfg_voz}))
 
                 # Señal de detener sesión desde el widget
                 nuevo_stop_ts = _leer_ts(_STOP_FILE)
