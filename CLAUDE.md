@@ -20,7 +20,7 @@ Requiere `.env` con `OPENAI_API_KEY`. Ver `README.md` para todas las variables.
 - `always` — sesión continua sin hotkey
 - `wake` — wake word con openWakeWord (`hey_jarvis`), sin API key
 
-## Arquitectura del pipeline de audio
+## Arquitectura del pipeline de audio 
 
 **Entrada (mic → servidor):**
 `stream_in` (PyAudio) → `capturar_y_enviar()` → WebSocket
